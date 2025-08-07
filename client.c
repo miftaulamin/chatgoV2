@@ -18,7 +18,7 @@ char password[50];
 // Input function
 void takeinput(char ch[50]) {
     fgets(ch, 50, stdin);
-    size_t len = strlen(ch);
+    int len = strlen(ch);
     if (len > 0 && ch[len - 1] == '\n') {
         ch[len - 1] = '\0';
     }
@@ -37,7 +37,7 @@ void generateUsername(char email[50], char username[50]) {
 }
 
 // Verify user function
-int verifyUser(SOCKET sd) {
+int LoginFun(SOCKET sd) {
     int attempt = 3;
     char buffer[200];
     char temp_username[50], temp_password[50];
@@ -68,7 +68,7 @@ int verifyUser(SOCKET sd) {
                 // Only set the username after successful login
                 strcpy(user1.username, temp_username);
                 strcpy(user1.password, temp_password);
-                Sleep(1000); // Give a moment for user to see the success message
+                Sleep(1000); 
                 return 1;
             } else if (strcmp(buffer, "FAIL") == 0) {
                 attempt--;
@@ -77,9 +77,9 @@ int verifyUser(SOCKET sd) {
                     printf("Press Enter to try again...");
                     getchar();
                 }
-                break; // break out of while(1) to retry
+                break; 
             } else {
-                // Ignore unrelated messages (like join/leave notifications)
+                
                 continue;
             }
         }
@@ -107,7 +107,7 @@ int auth(SOCKET sd) {
     system("cls");
 
     switch (choice) {
-        case 1: {
+        case 1: { // Signup
             printf("Enter your Email: ");
             scanf("%s", user1.email);
             getchar();
@@ -127,7 +127,7 @@ int auth(SOCKET sd) {
                     break;
                 } else {
                     printf("Passwords don't match, try again!\n");
-                    attempt--;
+                    attempt--; // Password na hole
                     printf("You have %d attempt(s) left\n", attempt);
                     Beep(750, 400);
                 }
@@ -138,7 +138,7 @@ int auth(SOCKET sd) {
                 return 0;
             }
 
-            // Send SIGNUP command to server
+            // Sending SIGNUP
             snprintf(buffer, sizeof(buffer), "SIGNUP %s %s", user1.username, user1.password);
             send(sd, buffer, strlen(buffer), 0);
 
@@ -152,9 +152,9 @@ int auth(SOCKET sd) {
                 }
                 buffer[bytes] = '\0';
 
-                if (strcmp(buffer, "USER_EXISTS") == 0) {
+                if (strcmp(buffer, "USER_EXISTS") == 0) { // 
                     printf("Username already exists. Please try again.\n");
-                    return auth(sd); // Recursive call to try again
+                    return auth(sd); // Recursion
                 } else if (strcmp(buffer, "OK") == 0) {
                     printf("Signup successful!\n");
                     return 1;
@@ -162,7 +162,6 @@ int auth(SOCKET sd) {
                     printf("Signup failed. Please try again.\n");
                     return 0;
                 } else {
-                    // Ignore unrelated messages (like join/leave notifications)
                     continue;
                 }
             }
@@ -170,7 +169,7 @@ int auth(SOCKET sd) {
         }
         
         case 2: {
-            int check = verifyUser(sd);
+            int check = LoginFun(sd);
             if (check == 1) {
                 return 1;
             } else {
@@ -179,33 +178,34 @@ int auth(SOCKET sd) {
             break;
         }
         
-        case 3: {
+        case 3: { // Exit
             printf("Goodbye!\n");
             return 0;
         }
         
         default: {
             printf("Invalid choice. Please try again.\n");
-            return auth(sd); // Recursive call for invalid choice
+            return auth(sd); 
         }
     }
 }
+// Authentication End
 
-// Thread function to receive messages from the server
+
+// Threading TO recive msg
 DWORD WINAPI receiveMessages(LPVOID socketDesc) {
     SOCKET sock = *(SOCKET *)socketDesc;
-    char buffer[MAX_LEN];
-    int bytes;
+    char buffer[10000];
+    int bytes = recv(sock, buffer, sizeof(buffer) - 1, 0);
 
-    while ((bytes = recv(sock, buffer, sizeof(buffer) - 1, 0)) > 0) {
+    while (bytes > 0) {
         buffer[bytes] = '\0';
         
-        // Check if it's an authentication response
         if (strcmp(buffer, "OK") == 0 || 
             strcmp(buffer, "FAIL") == 0 || 
             strcmp(buffer, "USER_EXISTS") == 0 ||
             strcmp(buffer, "AUTH_REQUIRED") == 0) {
-            // Skip authentication responses in chat mode
+            // Skip authentication
             continue;
         }
         
@@ -221,7 +221,7 @@ DWORD WINAPI receiveMessages(LPVOID socketDesc) {
 int main() {
     system("color 0A");
 
-    char message[MAX_LEN], fullMessage[MAX_LEN + 100];
+    char message[1000000], fullMessage[1000000];
     SOCKET sd;
     struct sockaddr_in server;
     WSADATA wsa;
@@ -245,7 +245,8 @@ int main() {
     server.sin_family = AF_INET;
     server.sin_port = htons(8888);
 
-    // Connect to server FIRST
+    // Connect to server
+
     if (connect(sd, (struct sockaddr *)&server, sizeof(server)) < 0) {
         printf("Connection failed.\n");
         closesocket(sd);
@@ -255,8 +256,8 @@ int main() {
 
     printf("Connected to the server.\n");
 
-    // THEN authenticate
-    int authResult = auth(sd);
+    // Authentication
+    int authResult = auth(sd); //  caling auth funnction
     if (authResult == 0) {
         printf("Authentication failed or cancelled.\n");
         closesocket(sd);
@@ -268,19 +269,18 @@ int main() {
     printf("Type your messages and press Enter to send. Type '/quit' to exit.\n");
     printf("=========================================\n");
 
-    // Clear any remaining input buffer
     fflush(stdin);
 
-    // Start the receive thread
+    // Thread start
     CreateThread(NULL, 0, receiveMessages, &sd, 0, NULL);
 
     // Main loop to send messages
     while (1) {
         printf("[%s]: ", user1.username);
         fgets(message, sizeof(message), stdin);
-        message[strcspn(message, "\n")] = '\0'; // Remove newline
+        message[strcspn(message, "\n")] = '\0';
 
-        // Check for quit command
+        // quit command
         if (strcmp(message, "/quit") == 0) {
             printf("Goodbye!\n");
             break;
@@ -296,7 +296,7 @@ int main() {
         }
     }
 
-    // Cleanup
+    // Cleaning everything
     closesocket(sd);
     WSACleanup();
     return 0;
